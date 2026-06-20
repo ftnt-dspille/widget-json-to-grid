@@ -1,0 +1,38 @@
+name: auto-tag
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "widget/info.json"
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      - name: Tag if version bumped
+        run: |
+          NEW=$(node -p "require('./widget/info.json').version")
+          OLD=$(git show HEAD~1:widget/info.json 2>/dev/null | node -e "let s='';process.stdin.on('data',c=>s+=c);process.stdin.on('end',()=>{try{console.log(JSON.parse(s).version)}catch{console.log('')}})" || true)
+          echo "old=$OLD new=$NEW"
+          if [ "$NEW" = "$OLD" ] || [ -z "$NEW" ]; then
+            echo "no version change; skipping"
+            exit 0
+          fi
+          TAG="v$NEW"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "tag $TAG already exists; skipping"
+            exit 0
+          fi
+          git tag "$TAG"
+          git push origin "$TAG"
