@@ -1,25 +1,25 @@
 {
-    "name": "jsonToGrid",
-    "title": "JSON to Grid",
-    "subTitle": "Render the json playbook result in grid view and also perform various operation on the grid",
-    "version": "1.2.0",
-    "published_date": 1778052412,
-    "metadata": {
-        "description": "Render the json playbook result in grid view and also perform various operation on the grid",
-        "snapshots": [
-            "https:\/\/repo.fortisoar.fortinet.com\/widgets\/jsonToGrid-1.2.0\/images\/json-to-grid-view.png",
-            "https:\/\/repo.fortisoar.fortinet.com\/widgets\/jsonToGrid-1.2.0\/images\/json-to-grid-edit.png"
-        ],
-        "pages": [
-            "View Panel",
-            "Listing",
-            "Dashboard"
-        ],
-        "certified": "Yes",
-        "publisher": "Fortinet",
-        "help_online": "https:\/\/github.com\/fortinet-fortisoar\/widget-json-to-grid\/blob\/release\/1.2.0\/README.md",
-        "compatibility": [
-            "8.0.0"
-        ]
-    }
+  "name": "jsonToGrid",
+  "title": "JSON to Grid",
+  "subTitle": "Render the json playbook result in grid view and also perform various operation on the grid",
+  "version": "1.3.0",
+  "published_date": 1778052412,
+  "metadata": {
+    "description": "Render the json playbook result in grid view and also perform various operation on the grid",
+    "snapshots": [
+      "https://repo.fortisoar.fortinet.com/widgets/jsonToGrid-1.2.0/images/json-to-grid-view.png",
+      "https://repo.fortisoar.fortinet.com/widgets/jsonToGrid-1.2.0/images/json-to-grid-edit.png"
+    ],
+    "pages": [
+      "View Panel",
+      "Listing",
+      "Dashboard"
+    ],
+    "certified": "Yes",
+    "publisher": "Fortinet",
+    "help_online": "https://github.com/fortinet-fortisoar/widget-json-to-grid/blob/release/1.2.0/README.md",
+    "compatibility": [
+      "8.0.0"
+    ]
+  }
 }

@@ -6,11 +6,11 @@ Copyright end */
 (function () {
     angular
         .module('cybersponse')
-        .controller('editJsonToGrid120Ctrl', editJsonToGrid120Ctrl);
+        .controller('editJsonToGrid130DevCtrl', editJsonToGrid130DevCtrl);
 
-    editJsonToGrid120Ctrl.$inject = ['$scope', '$resource', 'API', '$uibModalInstance', 'config', 'Field', '$filter', '_'];
+    editJsonToGrid130DevCtrl.$inject = ['$scope', '$resource', 'API', '$uibModalInstance', 'config', 'Field', '$filter', '_'];
 
-    function editJsonToGrid120Ctrl($scope, $resource, API, $uibModalInstance, config, Field, $filter, _) {
+    function editJsonToGrid130DevCtrl($scope, $resource, API, $uibModalInstance, config, Field, $filter, _) {
         $scope.cancel = cancel;
         $scope.save = save;
         $scope.config = config;
