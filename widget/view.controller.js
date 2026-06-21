@@ -331,16 +331,14 @@ Copyright end */
                   if (refreshGrid) {
                     $scope.gridOptions.data = data.result.grid_data;
                     $scope.columnDefs = data.result.grid_columns.columns;
-                    if (data.result.grid_data.length === 0) {
-                      $scope.gridPagedCollection = new PagedCollection('dummy_module', null, {}, false, null, $scope.columnDefs);
-                      $scope.gridPagedCollection.data = {
-                        '@context': API.API_3_BASE + 'contexts/dummy_module',
-                        '@id': API.API_3_BASE + 'dummy_module',
-                        '@type': 'hydra:Collection',
-                        'hydra:member': [],
-                        'hydra:totalItems': 0
-                      };
-                    }
+                    $scope.gridPagedCollection = new PagedCollection('dummy_module', null, {}, false, null, $scope.columnDefs);
+                    $scope.gridPagedCollection.data = {
+                      '@context': API.API_3_BASE + 'contexts/dummy_module',
+                      '@id': API.API_3_BASE + 'dummy_module',
+                      '@type': 'hydra:Collection',
+                      'hydra:member': data.result.grid_data,
+                      'hydra:totalItems': data.result.grid_data.length
+                    };
                   }
                   $scope.loadProcessing = false;
                   $scope.refreshProcessing = false;
