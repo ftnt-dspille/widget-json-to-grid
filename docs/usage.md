@@ -75,6 +75,76 @@ In this section, we use *Continuos Delivery* solution pack as an example for con
 
 >You can download this [Sample - JSON to Grid (ZIPPED)](./res/Sample-JSON-to-grid.zip) collection and import using the FortiSOAR&trade;'s import wizard to try out this widget. **_The ZIP file contains a playbook that generates a sample grid data._**
 
+## `grid_columns` Reference
+
+The `grid_columns` playbook variable controls how the widget renders each column. It must be a JSON object with a `columns` array:
+
+```json
+{
+  "columns": [
+    { "name": "severity", "displayName": "Severity", "width": 120 },
+    { "name": "name",     "displayName": "Name" }
+  ]
+}
+```
+
+The widget renders columns in the order they appear in the `columns` array.
+
+### Supported Keywords
+
+| Keyword | Type | Description |
+|---------|------|-------------|
+| `name` | string | **Required.** The field key from `grid_data` objects. Must match the property name exactly. |
+| `displayName` | string | Column header label. Defaults to `name` if omitted. |
+| `width` | number | Fixed column width in pixels (e.g. `120`). Omit to let the column size automatically. |
+| `minWidth` | number | Minimum column width in pixels. |
+| `maxWidth` | number | Maximum column width in pixels. |
+| `type` | string | Data type hint for sorting and filtering. One of `string` (default), `number`, `date`, `boolean`, `object`. |
+| `cellFilter` | string | AngularJS filter expression applied to the cell value before display. Examples: `"date:'MM/dd/yyyy'"`, `"number:2"`, `"uppercase"`. |
+| `cellTemplate` | string | Custom HTML template for the cell. The cell value is available as `row.entity[col.field]`. Use sparingly — plain `cellFilter` is simpler for formatting. |
+| `enableSorting` | boolean | Allow the user to sort by this column. Default: `true`. Set `false` to disable sorting on a specific column. |
+| `enableFiltering` | boolean | Show a filter input for this column. Default: `true` (inherited from grid). Set `false` to disable filtering on a specific column. |
+| `visible` | boolean | Whether the column is initially visible. Default: `true`. |
+| `pinnedLeft` | boolean | Pin the column to the left edge of the grid. |
+| `pinnedRight` | boolean | Pin the column to the right edge of the grid. |
+
+### Examples
+
+**Date formatting:**
+```json
+{ "name": "dueDate", "displayName": "Due Date", "type": "date", "cellFilter": "date:'MM/dd/yyyy'" }
+```
+
+**Number with two decimal places:**
+```json
+{ "name": "cost", "displayName": "Cost ($)", "type": "number", "cellFilter": "number:2" }
+```
+
+**Fixed-width pinned status column with sorting disabled:**
+```json
+{ "name": "status", "displayName": "Status", "width": 100, "pinnedLeft": true, "enableSorting": false }
+```
+
+**Hide a technical field while keeping it in `grid_data` for playbook use:**
+```json
+{ "name": "internalId", "visible": false }
+```
+
+**Custom cell template (render a link):**
+```json
+{
+  "name": "ticketUrl",
+  "displayName": "Ticket",
+  "cellTemplate": "<div class='ui-grid-cell-contents'><a href='{{row.entity.ticketUrl}}' target='_blank'>{{row.entity.ticketUrl}}</a></div>"
+}
+```
+
+### Notes
+
+- **Column order** is determined by the order of entries in the `columns` array. The grid always renders columns in this sequence regardless of the property order in `grid_data` objects.
+- **Unsupported fields** in `grid_data` (i.e. fields with no matching `columns` entry) are not rendered. To show all fields, include an entry for each key you want visible.
+- **Detail-view context**: when the widget is placed on a record detail page, the current record is automatically passed to the data-provider playbook as the selected record. This allows the playbook to scope `grid_data` to data relevant to that record without the user having to select a row first.
+
 ## JSON to Grid Widget Views
 
 | ![JSON to Grid widget with no record selected](./res/json-to-grid-no-record-selected.png) | ![JSON to Grid widget with a record selected](./res/json-to-grid-record-selected.png) |

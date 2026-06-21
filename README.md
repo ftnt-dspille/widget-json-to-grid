@@ -1,6 +1,6 @@
 # Release Information
 
-- **Version**: 1.1.0
+- **Version**: 1.2.0
 
 - **Certified**: Yes
 

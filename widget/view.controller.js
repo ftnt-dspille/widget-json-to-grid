@@ -1,16 +1,16 @@
 /* Copyright start
-  MIT License
-  Copyright (c) 2024 Fortinet Inc
-  Copyright end */
+    MIT License
+    Copyright (c) 2026 Fortinet Inc
+Copyright end */
 'use strict';
 (function () {
   angular
     .module('cybersponse')
-    .controller('jsonToGrid110Ctrl', jsonToGrid110Ctrl);
+    .controller('jsonToGrid130DevCtrl', jsonToGrid130DevCtrl);
 
-  jsonToGrid110Ctrl.$inject = ['$scope', '$resource', 'API', 'playbookService', '$q', 'toaster', 'Entity', '$filter', 'Modules', '_', 'exportService', 'currentPermissionsService', 'FIXED_MODULE', 'statusCodeService', '$uibModal', 'widgetService', 'PagedCollection', 'widgetBasePath'];
+  jsonToGrid130DevCtrl.$inject = ['$scope', '$state', '$resource', 'API', 'playbookService', '$q', 'toaster', 'Entity', '$filter', 'Modules', '_', 'exportService', 'currentPermissionsService', 'FIXED_MODULE', 'statusCodeService', '$uibModal', 'widgetService', 'PagedCollection', 'widgetBasePath'];
 
-  function jsonToGrid110Ctrl($scope, $resource, API, playbookService, $q, toaster, Entity, $filter, Modules, _, exportService, currentPermissionsService, FIXED_MODULE, statusCodeService, $uibModal, widgetService, PagedCollection, widgetBasePath) {
+  function jsonToGrid130DevCtrl($scope, $state, $resource, API, playbookService, $q, toaster, Entity, $filter, Modules, _, exportService, currentPermissionsService, FIXED_MODULE, statusCodeService, $uibModal, widgetService, PagedCollection, widgetBasePath) {
     $scope.executeGridPlaybook = executeGridPlaybook;
     $scope.refreshGridData = refreshGridData;
     $scope.widgetBasePath = widgetBasePath;
@@ -29,6 +29,13 @@
       Modules.get(params).$promise.then(function (result) {
         createGridButtons(result['hydra:member']);
       });
+      // When placed on a record detail page, capture that record so it can be
+      // passed to playbooks as the implicit "selected record" (no row selection needed).
+      if ($state.params.module && $state.params.id) {
+        Modules.get({ module: $state.params.module, id: $state.params.id }).$promise.then(function (result) {
+          $scope.custom_selected_records = result;
+        });
+      }
     }
 
     function createGridButtons(playbooks) {
@@ -106,7 +113,7 @@
         },
         expandableRowTemplate: $scope.widgetBasePath + 'widgetAssets/html/rowExpandable.html',
         enableExpandable: true,
-        enableFiltering: false,
+        enableFiltering: true,
         enableSelectAll: true,
         enableRowSelection: false,
         enableRowHeaderSelection: true,
@@ -114,7 +121,7 @@
         showSelectionCheckbox: true,
         enableColumnResizing: true,
         enableColumnMoving: true,
-        useExternalFiltering: true,
+        orderByColumnDefs: true,
         enableGridMenu: false,
         refresh: $scope.refreshGridData
       };
@@ -291,7 +298,7 @@
       var defer = $q.defer();
       $scope.refreshProcessing = refreshGrid;
       var workflowsReadPermission = currentPermissionsService.availablePermission(FIXED_MODULE.PLAYBOOK, 'read');
-      var data = getSelectedRows();
+      var data = $scope.custom_selected_records ? [$scope.custom_selected_records] : getSelectedRows();
       var records = [];
       angular.forEach(data, function (record) {
         records.push(record['@id']);

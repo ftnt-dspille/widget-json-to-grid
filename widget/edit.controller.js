@@ -1,16 +1,16 @@
 /* Copyright start
-  MIT License
-  Copyright (c) 2024 Fortinet Inc
-  Copyright end */
+    MIT License
+    Copyright (c) 2026 Fortinet Inc
+Copyright end */
 'use strict';
 (function () {
     angular
         .module('cybersponse')
-        .controller('editJsonToGrid110Ctrl', editJsonToGrid110Ctrl);
+        .controller('editJsonToGrid130DevCtrl', editJsonToGrid130DevCtrl);
 
-    editJsonToGrid110Ctrl.$inject = ['$scope', '$resource', 'API', '$uibModalInstance', 'config', 'Field', '$filter', '_'];
+    editJsonToGrid130DevCtrl.$inject = ['$scope', '$resource', 'API', '$uibModalInstance', 'config', 'Field', '$filter', '_'];
 
-    function editJsonToGrid110Ctrl($scope, $resource, API, $uibModalInstance, config, Field, $filter, _) {
+    function editJsonToGrid130DevCtrl($scope, $resource, API, $uibModalInstance, config, Field, $filter, _) {
         $scope.cancel = cancel;
         $scope.save = save;
         $scope.config = config;
