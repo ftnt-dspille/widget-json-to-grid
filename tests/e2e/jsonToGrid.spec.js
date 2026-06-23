@@ -16,6 +16,7 @@
 // Run: make test-e2e-spec SPEC="../widgets-src/widget-json-to-grid/tests/e2e/jsonToGrid.spec.js"
 
 const { test, expect } = require("../../../../fortisoar-widget-harness/tests/e2e/_isolated");
+const { waitForRender, settleRender } = require("../../../../fortisoar-widget-harness/tests/e2e/_render");
 
 const PROVIDER_UUID = "11111111-1111-1111-1111-111111111111";
 const TRIGGER_ROUTE = "json-grid-route";
@@ -86,8 +87,10 @@ async function stubApi(page, rows, columns) {
         body: JSON.stringify(body),
       });
 
-    // 1. Trigger POST (…/triggers/1/action/<route>?force_debug=true) -> task id.
-    if (/\/action\//.test(url) && method === "POST") {
+    // 1. Trigger POST -> task id. Two endpoints by trigger type:
+    //    record-context action  …/triggers/1/action/<route>
+    //    generic/no-record run  …/triggers/1/notrigger/<playbookUuid>
+    if (/\/(action|notrigger)\//.test(url) && method === "POST") {
       return json({ task_ids: ["task-1"], task_id: "task-1" });
     }
     // 2. checkPlaybookExecutionCompletion poll (no websocket in the harness, so
@@ -151,6 +154,11 @@ async function mountView(page, id, rows, configOverrides = {}, columns) {
     { id, config }
   );
   await page.goto("/", { waitUntil: "domcontentloaded" });
+  // Deterministic render gate (harness P0/P1): wait for the mount to reach a
+  // terminal phase and drain the digest/$http/$timeout queues, so the grid's
+  // execution-driven render (including the empty "No Results Found" path) has
+  // caught up before any assertion. Replaces per-test timeout races.
+  await waitForRender(page);
 }
 
 test.describe("jsonToGrid — view", () => {

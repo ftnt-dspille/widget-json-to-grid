@@ -843,9 +843,28 @@ Copyright end */
       if (scope.parentRecordId) {
         inputData.__parentRecordId = scope.parentRecordId;
       }
-      var url = API.ACTION_TRIGGER + route;
-      if (isSync && workflowsReadPermission && playbook.recordTags.includes('SystemWaitForCompletion')) {
-        url = API.ACTION_TRIGGER + route + '?force_debug=true';
+      // Pick the trigger endpoint by trigger TYPE (mirrors action-renderer's
+      // triggerPlaybookHeadless; see KNOWLEDGEBASE.md §19.3). A no-record /
+      // generic data-provider playbook (trigger step has noRecordExecution, or
+      // simply no action `route`) must run by playbook UUID via the
+      // manual/"notrigger" endpoint — the same call the designer "Run" and
+      // scheduled playbooks use. Using ACTION_TRIGGER + route for these 404s
+      // ("Resource Not Found In Request") because the manual-action route isn't
+      // registered (e.g. the playbook lives in an unpublished/Drafts collection).
+      var ts = playbookService.getTriggerStep(playbook);
+      var isManual = (ts && ts.arguments && ts.arguments.noRecordExecution === true) || !route;
+      var url;
+      if (isManual) {
+        var MANUAL = (API && API.MANUAL_TRIGGER) || 'api/triggers/1/notrigger/';
+        url = MANUAL + inputData.__uuid;
+        if (isSync && workflowsReadPermission && playbook.recordTags.includes('SystemWaitForCompletion')) {
+          url = url + '?force_debug=true';
+        }
+      } else {
+        url = API.ACTION_TRIGGER + route;
+        if (isSync && workflowsReadPermission && playbook.recordTags.includes('SystemWaitForCompletion')) {
+          url = API.ACTION_TRIGGER + route + '?force_debug=true';
+        }
       }
       $resource(url).save(inputData).$promise.then(function (response) {
         /* jshint camelcase: false */

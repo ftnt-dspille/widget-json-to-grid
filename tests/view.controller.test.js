@@ -789,6 +789,31 @@ describe("data flow & row rendering (SPEC A)", () => {
     expect(triggerCall.url).toContain("force_debug=true");
   });
 
+  // Trigger ENDPOINT is chosen by trigger TYPE (KNOWLEDGEBASE.md §19.3). A
+  // no-record / generic data-provider playbook must run by playbook UUID via
+  // the manual "notrigger" endpoint — NOT action/<route>, which 404s when the
+  // manual-action route isn't registered (e.g. a Drafts/unpublished collection).
+  test("A6b: noRecordExecution provider triggers via notrigger/<uuid>, not action/<route>", () => {
+    scenario.triggerArgs = { route: "route-1", resources: [], noRecordExecution: true };
+    scenario.gridData = [{ uuid: "r1" }];
+    boot();
+    const trig = scenario.saveCalls.find((c) => /\/(action|notrigger)\//.test(String(c.url)));
+    expect(trig).toBeDefined();
+    expect(trig.url).toContain("/notrigger/");
+    expect(trig.url).not.toContain("/action/");
+    // identity getEndPathName in the harness => __uuid is the playbook @id
+    expect(trig.url).toContain("/api/3/workflows/provider-uuid");
+  });
+
+  test("A6c: provider with no action route also uses notrigger/<uuid>", () => {
+    scenario.triggerArgs = { resources: [] }; // no route at all
+    scenario.gridData = [{ uuid: "r1" }];
+    boot();
+    const trig = scenario.saveCalls.find((c) => /\/(action|notrigger)\//.test(String(c.url)));
+    expect(trig).toBeDefined();
+    expect(trig.url).toContain("/notrigger/");
+  });
+
   test("A7: refreshGridData clears data then re-triggers the provider", () => {
     scenario.gridData = [{ uuid: "r1" }, { uuid: "r2" }];
     const { scope } = boot();
