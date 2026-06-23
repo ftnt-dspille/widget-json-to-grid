@@ -1,5 +1,5 @@
 "use strict";
-// view.controller (jsonToGrid131DevCtrl) unit tests — jsdom project.
+// view.controller (jsonToGrid132DevCtrl) unit tests — jsdom project.
 //
 // The controller drives a deep async chain on init:
 //   _init -> loadGriOptions (build grid options + buttons)
@@ -20,7 +20,7 @@ require("angular-mocks");
 angular.module("cybersponse", []); // eslint-disable-line no-undef
 require("../widget/view.controller.js");
 
-const CTRL_NAME = "jsonToGrid131DevCtrl";
+const CTRL_NAME = "jsonToGrid132DevCtrl";
 const ngModule = window.angular.mock.module; // eslint-disable-line no-undef
 const ngInject = window.angular.mock.inject; // eslint-disable-line no-undef
 
@@ -111,13 +111,18 @@ beforeEach(() => {
         successCb({ instance_ids: ["inst-1"] });
       },
       getExecutedPlaybookLogData: () =>
-        _$q_.when({
-          status: scenario.logStatus,
-          result: {
-            grid_data: scenario.gridData,
-            grid_columns: { columns: scenario.gridColumns },
-          },
-        }),
+        // `scenario.logData`, when set, is returned verbatim — used to model
+        // env-sourced payloads (columns/rows in different steps). Otherwise the
+        // default legacy `result`-only shape is built from gridData/gridColumns.
+        _$q_.when(
+          scenario.logData || {
+            status: scenario.logStatus,
+            result: {
+              grid_data: scenario.gridData,
+              grid_columns: { columns: scenario.gridColumns },
+            },
+          }
+        ),
     }));
 
     $provide.factory("currentPermissionsService", () => ({
@@ -318,6 +323,92 @@ describe("data flow & row rendering (SPEC A)", () => {
     });
     expect(rows[0]["@id"]).not.toBe(rows[1]["@id"]);
     expect(rows.map((r) => r.name)).toEqual(["alpha", "beta"]);
+  });
+
+  // ── A2e–A2j: rows + columns sourced from the playbook env ─────────────────
+  // The executed-playbook log carries a flat `env` of every variable set in any
+  // step, so grid_data and grid_columns no longer have to be returned by the
+  // same final step. resolveGridPayload precedence: result → named env → sniff.
+  const COLS = { columns: [{ name: "name" }, { name: "uuid" }] };
+  const ROWS = [
+    { uuid: "r1", name: "one" },
+    { uuid: "r2", name: "two" },
+  ];
+
+  test("A2e: rows + columns sourced from named env vars (no result)", () => {
+    scenario.logData = {
+      status: "finished",
+      result: { debug: true }, // result present but carries no grid_* keys
+      env: { grid_data: ROWS, grid_columns: COLS, input: {}, request: {} },
+    };
+    const { scope } = boot();
+    expect(scope.gridOptions.data).toHaveLength(2);
+    expect(scope.columnDefs.map((c) => c.field)).toEqual(["name", "uuid"]);
+  });
+
+  test("A2f: rows and columns can come from DIFFERENT sources (result + env)", () => {
+    // rows set in the final step (result), columns set in an earlier step (env)
+    scenario.logData = {
+      status: "finished",
+      result: { grid_data: ROWS },
+      env: { grid_columns: COLS },
+    };
+    const { scope } = boot();
+    expect(scope.gridOptions.data).toHaveLength(2);
+    expect(scope.columnDefs.map((c) => c.field)).toEqual(["name", "uuid"]);
+  });
+
+  test("A2g: result takes precedence over env for the same field", () => {
+    scenario.logData = {
+      status: "finished",
+      result: { grid_data: ROWS, grid_columns: COLS },
+      env: { grid_data: [{ uuid: "x", name: "stale" }], grid_columns: { columns: [{ name: "wrong" }] } },
+    };
+    const { scope } = boot();
+    expect(scope.gridOptions.data.map((r) => r.name)).toEqual(["one", "two"]);
+    expect(scope.columnDefs.map((c) => c.field)).toEqual(["name", "uuid"]);
+  });
+
+  test("A2h: shape-sniff finds rows/columns under non-standard env names", () => {
+    scenario.logData = {
+      status: "finished",
+      result: {},
+      env: {
+        // system keys must be ignored even though `input` is an object
+        input: { params: {}, records: [] },
+        request: {},
+        myTableRows: ROWS,
+        myTableCols: COLS,
+      },
+    };
+    const { scope } = boot();
+    expect(scope.gridOptions.data).toHaveLength(2);
+    expect(scope.columnDefs.map((c) => c.field)).toEqual(["name", "uuid"]);
+  });
+
+  test("A2i: shape-sniff picks the longest object-array as rows", () => {
+    scenario.logData = {
+      status: "finished",
+      result: {},
+      env: {
+        small: [{ uuid: "a", name: "a" }],
+        big: ROWS.concat([{ uuid: "r3", name: "three" }]),
+        grid_columns: COLS,
+      },
+    };
+    const { scope } = boot();
+    expect(scope.gridOptions.data).toHaveLength(3);
+  });
+
+  test("A2j: no resolvable rows/columns yields an empty grid (no throw)", () => {
+    scenario.logData = {
+      status: "finished",
+      result: {},
+      env: { input: {}, request: {}, debug: true },
+    };
+    const { scope } = boot();
+    expect(scope.gridOptions.data).toEqual([]);
+    expect(scope.columnDefs).toEqual([]);
   });
 
   test("A2d: rows that already carry an '@id' are left untouched", () => {

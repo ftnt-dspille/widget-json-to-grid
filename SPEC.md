@@ -20,10 +20,21 @@ A1. **Boot fetches the grid.** On init the controller sets `loadProcessing =
     true`, builds grid options, and triggers the configured data-provider
     playbook (`config.actionButtons[0].uuid`) to populate the grid.
 
-A2. **Grid data comes from the playbook result.** When the triggered playbook
-    finishes (`status === 'finished'`), the controller sets
-    `gridOptions.data = result.grid_data` and
-    `columnDefs = result.grid_columns.columns`. → **row count == grid_data.length**.
+A2. **Grid rows + columns are resolved from the finished execution.** When the
+    triggered playbook finishes (`status === 'finished'`), the controller calls
+    `resolveGridPayload(data)` to source `gridOptions.data` (rows) and
+    `columnDefs` (columns) **independently**, then `row count == rows.length`.
+    They no longer have to be returned by the same (final) step — the
+    executed-playbook log carries a flat `env` of every variable set in any step.
+    Per-field precedence (rows and columns resolved separately):
+    1. `data.result.grid_data` / `data.result.grid_columns` (legacy contract);
+    2. `data.env.grid_data` / `data.env.grid_columns` (named env vars — may be
+       set in different steps);
+    3. shape-sniff `data.env` (rows = longest array of plain objects; columns =
+       a `{columns:[…]}`-shaped value; system keys like `input`/`request`/
+       `resources` excluded).
+    No extra API call — `env` ships in the same `getExecutedPlaybookLogData`
+    response. Covered by tests A2e–A2j.
 
 A2b. **PagedCollection `list`/`keyPairs` drive the rows.** csGrid renders body
     rows from `gridPagedCollection.list`/`.keyPairs`, **not** from

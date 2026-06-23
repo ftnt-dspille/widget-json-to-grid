@@ -27,11 +27,11 @@ Copyright end */
 
   angular
     .module('cybersponse')
-    .controller('jsonToGrid131DevCtrl', jsonToGrid131DevCtrl);
+    .controller('jsonToGrid132DevCtrl', jsonToGrid132DevCtrl);
 
-  jsonToGrid131DevCtrl.$inject = ['$scope', '$state', '$resource', 'API', 'playbookService', '$q', 'toaster', 'Entity', '$filter', 'Modules', '_', 'exportService', 'currentPermissionsService', 'FIXED_MODULE', 'statusCodeService', '$uibModal', 'widgetService', 'PagedCollection', 'widgetBasePath', 'settingsService', '$injector'];
+  jsonToGrid132DevCtrl.$inject = ['$scope', '$state', '$resource', 'API', 'playbookService', '$q', 'toaster', 'Entity', '$filter', 'Modules', '_', 'exportService', 'currentPermissionsService', 'FIXED_MODULE', 'statusCodeService', '$uibModal', 'widgetService', 'PagedCollection', 'widgetBasePath', 'settingsService', '$injector'];
 
-  function jsonToGrid131DevCtrl($scope, $state, $resource, API, playbookService, $q, toaster, Entity, $filter, Modules, _, exportService, currentPermissionsService, FIXED_MODULE, statusCodeService, $uibModal, widgetService, PagedCollection, widgetBasePath, settingsService, $injector) {
+  function jsonToGrid132DevCtrl($scope, $state, $resource, API, playbookService, $q, toaster, Entity, $filter, Modules, _, exportService, currentPermissionsService, FIXED_MODULE, statusCodeService, $uibModal, widgetService, PagedCollection, widgetBasePath, settingsService, $injector) {
     // uiGridConstants is a SOFT dependency: it supplies the filter-type enum for
     // the per-column filters, but the widget must still mount if a host/harness
     // hasn't registered ui.grid (buildColumnFilter falls back to the numeric
@@ -188,6 +188,80 @@ Copyright end */
     // by a plain-JSON data-provider playbook often lack one, which renders the
     // columns but no body rows. Give every row a stable, unique '@id'/'uuid'
     // (preserving any the playbook already supplied) so the grid can render.
+    // ── Resolve grid rows + columns from a finished execution ─────────────────
+    // Historically both `grid_data` (rows) and `grid_columns` had to be returned
+    // by the SAME (final) step, because the widget only read `data.result.*`.
+    // The executed-playbook log also carries `data.env` — a FLAT namespace of
+    // every variable set ANYWHERE in the playbook (verified live: a variable set
+    // in any step lands as a top-level `env` key). So we can source rows and
+    // columns independently, with no extra config and no extra API call.
+    //
+    // Precedence (first hit wins, per field, independently):
+    //   1. data.result.grid_data / data.result.grid_columns  (legacy contract)
+    //   2. data.env.grid_data    / data.env.grid_columns      (named env vars —
+    //      columns and rows may be set in different steps)
+    //   3. shape-sniff data.env  (zero-knowledge fallback: rows = the longest
+    //      array of plain objects; columns = a value shaped like
+    //      { columns: [ … ] }). Conservative on purpose — env also holds system
+    //      keys (input/request/resources/…), which are excluded.
+    var ENV_SYSTEM_KEYS = {
+      debug: 1, input: 1, route: 1, request: 1, task_id: 1, wf_id: 1,
+      step_id: 1, child_step_id: 1, auth_info: 1, resources: 1, globalMock: 1,
+      currentUser: 1, last_run_at: 1, mockPlaybookId: 1, inputVariables: 1,
+      executeButtonText: 1, noRecordExecution: 1, singleRecordExecution: 1
+    };
+
+    function looksLikeRows(value) {
+      if (!angular.isArray(value) || value.length === 0) {
+        return false;
+      }
+      // "Rows" = an array that is mostly plain (non-array) objects.
+      var objectRows = value.filter(function (v) {
+        return angular.isObject(v) && !angular.isArray(v);
+      });
+      return objectRows.length >= Math.ceil(value.length / 2);
+    }
+
+    function looksLikeColumns(value) {
+      return angular.isObject(value) && !angular.isArray(value) &&
+        angular.isArray(value.columns);
+    }
+
+    function sniffEnv(env, predicate, pick) {
+      var best = null;
+      angular.forEach(env, function (value, key) {
+        if (ENV_SYSTEM_KEYS[key] || !predicate(value)) {
+          return;
+        }
+        if (best === null || pick(value, best)) {
+          best = value;
+        }
+      });
+      return best;
+    }
+
+    function resolveGridPayload(data) {
+      var result = (data && data.result) || {};
+      var env = (data && data.env) || {};
+
+      var gridData =
+        angular.isArray(result.grid_data) ? result.grid_data :
+        angular.isArray(env.grid_data) ? env.grid_data :
+        sniffEnv(env, looksLikeRows, function (candidate, current) {
+          return candidate.length > current.length;
+        });
+
+      var gridColumns =
+        looksLikeColumns(result.grid_columns) ? result.grid_columns :
+        looksLikeColumns(env.grid_columns) ? env.grid_columns :
+        sniffEnv(env, looksLikeColumns, function () { return false; });
+
+      return {
+        gridData: angular.isArray(gridData) ? gridData : [],
+        gridColumns: gridColumns || { columns: [] }
+      };
+    }
+
     function ensureRowIds(rows) {
       if (!angular.isArray(rows)) {
         return [];
@@ -893,14 +967,18 @@ Copyright end */
                     // actually paints) so the data shows up. Each row still gets
                     // a synthesized '@id'/uuid when missing (csGrid selection
                     // tracks rows by IRI).
-                    var gridData = ensureRowIds(data.result.grid_data);
+                    // Source rows + columns independently from result/env (they
+                    // no longer have to come from the same step). See
+                    // resolveGridPayload.
+                    var payload = resolveGridPayload(data);
+                    var gridData = ensureRowIds(payload.gridData);
                     // Master row set — sort/filter always derive from this so
                     // they compose and are reversible.
                     $scope._gridAllRows = gridData;
 
                     // Columns: map name->field, then apply the saved per-user
                     // order (default order = grid_columns order).
-                    var columns = normalizeColumns((data.result.grid_columns || {}).columns, gridData);
+                    var columns = normalizeColumns((payload.gridColumns || {}).columns, gridData);
                     // Admin column chooser default (order + visibility) first,
                     // then the per-user dragged order overrides order on top.
                     columns = applyColumnPrefs(columns, $scope.config.columnPrefs);

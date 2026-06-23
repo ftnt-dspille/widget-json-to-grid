@@ -6,11 +6,11 @@ Copyright end */
 (function () {
     angular
         .module('cybersponse')
-        .controller('editJsonToGrid131DevCtrl', editJsonToGrid131DevCtrl);
+        .controller('editJsonToGrid132DevCtrl', editJsonToGrid132DevCtrl);
 
-    editJsonToGrid131DevCtrl.$inject = ['$scope', '$resource', 'API', '$uibModalInstance', 'config', 'Field', '$filter', '_', '$q', 'playbookService', 'currentPermissionsService', 'FIXED_MODULE', 'toaster'];
+    editJsonToGrid132DevCtrl.$inject = ['$scope', '$resource', 'API', '$uibModalInstance', 'config', 'Field', '$filter', '_', '$q', 'playbookService', 'currentPermissionsService', 'FIXED_MODULE', 'toaster'];
 
-    function editJsonToGrid131DevCtrl($scope, $resource, API, $uibModalInstance, config, Field, $filter, _, $q, playbookService, currentPermissionsService, FIXED_MODULE, toaster) {
+    function editJsonToGrid132DevCtrl($scope, $resource, API, $uibModalInstance, config, Field, $filter, _, $q, playbookService, currentPermissionsService, FIXED_MODULE, toaster) {
         $scope.cancel = cancel;
         $scope.save = save;
         $scope.config = config;
@@ -148,7 +148,17 @@ Copyright end */
                     playbookService.checkPlaybookExecutionCompletion(taskIds, function (result) {
                         playbookService.getExecutedPlaybookLogData(result.instance_ids).then(function (data) {
                             if (data && data.status === 'finished' && data.result) {
-                                var raw = (data.result.grid_columns || {}).columns || [];
+                                // Columns may be returned in result OR set as an
+                                // env variable in any step (see view.controller's
+                                // resolveGridPayload). Prefer result, fall back
+                                // to the named env var so discovery works even
+                                // when columns aren't in the final step.
+                                var env = data.env || {};
+                                var gridColumns =
+                                    angular.isArray((data.result.grid_columns || {}).columns) ? data.result.grid_columns :
+                                    angular.isArray((env.grid_columns || {}).columns) ? env.grid_columns :
+                                    { columns: [] };
+                                var raw = gridColumns.columns || [];
                                 var columns = (angular.isArray(raw) ? raw : []).map(function (col) {
                                     var field = col.field || col.name;
                                     return { field: field, displayName: col.displayName || col.name || field, type: col.type || 'string' };
