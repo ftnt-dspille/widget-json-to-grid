@@ -86,6 +86,77 @@ Copyright end -->
                 </div>
             </div>
             <hr>
+            <!-- Column chooser (FOLLOWUPS #2). Top-level section (NOT nested
+                 under the execution-progress accordion). Run the data-provider
+                 playbook once to discover its columns, then set the default
+                 visibility + order. Persisted as config.columnPrefs;
+                 view.controller merges it over the runtime grid_columns
+                 (playbook = source of truth for which columns exist). -->
+            <div class="form-group dashed-border-section" style="position:relative;">
+                <div style="padding: 12px;">
+                    <h8>Default Columns</h8>
+                    <p class="help-block margin-bottom-sm">
+                        Discover the columns the data-provider playbook returns,
+                        then choose which show by default and in what order.
+                        New columns the playbook adds later stay visible.
+                    </p>
+                    <button id="discover-columns" type="button"
+                        class="btn btn-sm btn-default margin-bottom-sm"
+                        data-ng-click="discoverColumns()"
+                        data-ng-disabled="columnDiscovery.processing || !config.actionButtons.length">
+                        <i class="fa"
+                            data-ng-class="columnDiscovery.processing ? 'fa-spinner fa-spin' : 'fa-search'"></i>
+                        {{ columnChooser.length ? 'Re-discover Columns' : 'Discover Columns' }}
+                    </button>
+                    <span class="text-danger margin-left-sm"
+                        data-ng-if="columnDiscovery.error">{{ columnDiscovery.error }}</span>
+                    <div class="text-muted"
+                        data-ng-if="!config.actionButtons.length">
+                        Add a JSON Data Provider playbook above to enable column discovery.
+                    </div>
+                    <table class="table table-condensed margin-top-sm"
+                        data-ng-if="columnChooser.length">
+                        <thead>
+                            <tr>
+                                <th style="width:60px">Show</th>
+                                <th>Column</th>
+                                <th>Type</th>
+                                <th style="width:80px">Order</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr data-ng-repeat="col in columnChooser track by col.field">
+                                <td>
+                                    <input type="checkbox"
+                                        data-ng-checked="col.visible !== false"
+                                        data-ng-click="toggleColumnVisible(col)">
+                                </td>
+                                <td>{{ col.displayName || col.field }}</td>
+                                <td><span class="label label-default">{{ col.type || 'string' }}</span></td>
+                                <td>
+                                    <button type="button" class="btn btn-xs btn-default"
+                                        data-ng-click="moveColumnUp($index)"
+                                        data-ng-disabled="$first" title="Move up">
+                                        <i class="fa fa-arrow-up"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-xs btn-default"
+                                        data-ng-click="moveColumnDown($index)"
+                                        data-ng-disabled="$last" title="Move down">
+                                        <i class="fa fa-arrow-down"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <button id="reset-columns" type="button"
+                        class="btn btn-xs btn-link text-danger"
+                        data-ng-if="columnChooser.length"
+                        data-ng-click="resetColumnPrefs()">
+                        Clear column defaults
+                    </button>
+                </div>
+            </div>
+            <hr>
             <div class="form-group dashed-border-section" style="position:relative;">
                 <div style="padding: 12px;">
                     <h8>Grid Action Buttons</h8>

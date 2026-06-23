@@ -25,9 +25,14 @@ describe("view.html (SPEC A4, B)", () => {
     expect(viewHtml).toContain('data-paged-collection="gridPagedCollection"');
   });
 
-  test("load spinner is gated on loadProcessing", () => {
-    expect(viewHtml).toContain('data-ng-if="loadProcessing"');
+  test("load spinner is gated on loadProcessing (and suppressed when a gridError is shown)", () => {
+    expect(viewHtml).toContain('data-ng-if="loadProcessing && !gridError"');
     expect(viewHtml).toContain("Fetching Grid Data");
+  });
+
+  test("gridError message is rendered when set (graceful no-provider state)", () => {
+    expect(viewHtml).toContain('data-ng-if="gridError"');
+    expect(viewHtml).toContain("{{gridError}}");
   });
 
   test("refresh overlay is gated on refreshProcessing", () => {

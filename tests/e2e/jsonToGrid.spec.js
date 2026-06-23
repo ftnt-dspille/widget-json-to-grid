@@ -43,14 +43,16 @@ function providerPlaybook(uuid) {
   };
 }
 
-// The execution-log result that drives the grid. rows -> grid_data.
-function gridResult(rows) {
+// The execution-log result that drives the grid. rows -> grid_data. An optional
+// `columns` overrides the default two-column set (used by the filter tests to
+// drive typed columns).
+function gridResult(rows, columns) {
   return {
     status: "finished",
     result: {
       grid_data: rows,
       grid_columns: {
-        columns: [
+        columns: columns || [
           { name: "name", displayName: "Name" },
           { name: "severity", displayName: "Severity" },
         ],
@@ -73,7 +75,7 @@ async function resolveId(request) {
 // Instance id the poll hands back; getExecutedPlaybookLogData fetches it.
 const INSTANCE_ID = 777;
 
-async function stubApi(page, rows) {
+async function stubApi(page, rows, columns) {
   await page.route("**/api/**", async (route) => {
     const url = route.request().url();
     const method = route.request().method();
@@ -101,7 +103,7 @@ async function stubApi(page, rows) {
     // 3. getExecutedPlaybookLogData -> GET api/wf/api/workflows/<numeric id>/.
     //    Resolves to the finished log carrying grid_data/grid_columns.
     if (new RegExp("/api/workflows/" + INSTANCE_ID + "\\b").test(url) && method === "GET") {
-      return json(gridResult(rows));
+      return json(gridResult(rows, columns));
     }
     // 4. Data-provider / action playbook fetched by uuid (/api/3/workflows/<uuid>).
     if (/\/workflows\/[0-9a-f-]{36}/i.test(url)) {
@@ -127,8 +129,8 @@ async function stubApi(page, rows) {
   });
 }
 
-async function mountView(page, id, rows, configOverrides = {}) {
-  await stubApi(page, rows);
+async function mountView(page, id, rows, configOverrides = {}, columns) {
+  await stubApi(page, rows, columns);
   const config = Object.assign(
     {
       title: "Change Requests",
@@ -281,6 +283,103 @@ test.describe("jsonToGrid — view", () => {
 
     // Soft assertion so the test always passes (it's diagnostic-only).
     expect(diag.rows.length).toBe(3);
+  });
+
+  // ── FortiSOAR-style dropdown filters (real DOM) ──────────────────────────
+  const bodyRowsLoc = (page) =>
+    page.locator(".grid-widget-container .ui-grid-render-container-body .ui-grid-row");
+
+  test("boolean column renders a Yes/No/Not Set dropdown that filters rows", async ({ page }) => {
+    const rows = [
+      { name: "A", active: true },
+      { name: "B", active: false },
+      { name: "C", active: true },
+    ];
+    const columns = [{ name: "name" }, { name: "active", type: "boolean" }];
+    await mountView(page, id, rows, {}, columns);
+
+    const bodyRows = bodyRowsLoc(page);
+    await expect(bodyRows).toHaveCount(3, { timeout: 20000 });
+
+    // Exactly one custom dropdown toggle (the boolean column; "name" keeps the
+    // native text filter).
+    const toggle = page.locator(".jtg-toggle");
+    await expect(toggle).toHaveCount(1);
+    await toggle.click();
+
+    const menu = page.locator(".jtg-menu");
+    await expect(menu).toBeVisible();
+    await menu.getByText("Yes", { exact: true }).click();
+
+    // Only the two active=true rows remain.
+    await expect(bodyRows).toHaveCount(2, { timeout: 10000 });
+  });
+
+  test("enum column renders a multi-select checklist with Apply that filters rows", async ({ page }) => {
+    const rows = [
+      { sev: "High" },
+      { sev: "Low" },
+      { sev: "High" },
+      { sev: "Medium" },
+    ];
+    const columns = [{ name: "sev", type: "enum" }];
+    await mountView(page, id, rows, {}, columns);
+
+    const bodyRows = bodyRowsLoc(page);
+    await expect(bodyRows).toHaveCount(4, { timeout: 20000 });
+
+    await page.locator(".jtg-toggle").click();
+    const menu = page.locator(".jtg-menu");
+    await expect(menu).toBeVisible();
+
+    // Select "High" and Apply.
+    await menu.locator("label.jtg-check", { hasText: "High" }).locator("input").check();
+    await menu.getByRole("button", { name: /Apply/ }).click();
+
+    // Two "High" rows remain.
+    await expect(bodyRows).toHaveCount(2, { timeout: 10000 });
+  });
+
+  test("date column Custom Range filters rows to the selected From/To window", async ({ page }) => {
+    // Rows on days 5/15/25 of the current month so the default calendar view
+    // (no model date => current month) shows all three days as in-month cells.
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = now.getMonth();
+    const mk = (d) => new Date(Date.UTC(y, m, d, 12)).toISOString();
+    const rows = [
+      { name: "A", when: mk(5) },
+      { name: "B", when: mk(15) },
+      { name: "C", when: mk(25) },
+    ];
+    const columns = [{ name: "name" }, { name: "when", type: "date" }];
+    await mountView(page, id, rows, {}, columns);
+
+    const bodyRows = bodyRowsLoc(page);
+    await expect(bodyRows).toHaveCount(3, { timeout: 20000 });
+
+    await page.locator(".jtg-toggle").click();
+    const menu = page.locator(".jtg-menu");
+    await expect(menu).toBeVisible();
+
+    await menu.getByText("Custom Range", { exact: false }).click();
+
+    // Opens the "Define Custom Date Range" popup ($uibModal, appended to body).
+    const modal = page.locator(".jtg-range");
+    await expect(modal).toBeVisible();
+    const cols = modal.locator(".jtg-range-col");
+    await expect(cols).toHaveCount(2);
+
+    // From = day 10, To = day 20 (both current-month cells) => only day-15 row.
+    // uib-datepicker day buttons carry a full-date aria-label, so match the
+    // visible in-month day-number <span> (out-of-month spans are .text-muted).
+    const day = (col, n) =>
+      col.locator("button", { has: page.locator(`span:not(.text-muted):text-is("${n}")`) }).first();
+    await day(cols.nth(0), 10).click();
+    await day(cols.nth(1), 20).click();
+    await modal.getByRole("button", { name: /Apply/ }).click();
+
+    await expect(bodyRows).toHaveCount(1, { timeout: 10000 });
   });
 
 });

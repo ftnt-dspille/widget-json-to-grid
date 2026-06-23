@@ -25,6 +25,15 @@ A2. **Grid data comes from the playbook result.** When the triggered playbook
     `gridOptions.data = result.grid_data` and
     `columnDefs = result.grid_columns.columns`. → **row count == grid_data.length**.
 
+A2b. **PagedCollection `list`/`keyPairs` drive the rows.** csGrid renders body
+    rows from `gridPagedCollection.list`/`.keyPairs`, **not** from
+    `data['hydra:member']` (`if (isUndefined(pc.list) || !pc.list.length)
+    gridOptions.data=[]; else gridOptions.data=pc.keyPairs;`). Setting only
+    `data['hydra:member']` shows the column headers but **zero rows**. The
+    controller sets `list`, `keyPairs`, and `visited` from the grid data so the
+    rows render. Each row also gets a synthesized `@id`/`uuid` when missing
+    (`ensureRowIds`) since csGrid selection tracks rows by IRI.
+
 A3. **Empty result → empty collection.** When `grid_data.length === 0`, a
     `PagedCollection('dummy_module', …)` is built with an empty
     `hydra:member` / `hydra:totalItems: 0` so the grid renders the
@@ -45,11 +54,89 @@ A6. **SystemWaitForCompletion is forced.** Before triggering, the data-provider
 A7. **Refresh** (`refreshGridData`) clears `gridOptions.data = []` then
     re-triggers the data-provider playbook.
 
+A8. **Columns: binding, order, persistence.**
+    - A8a. Each `grid_columns` entry's `name` is copied into `field`
+      (`normalizeColumns`); ui-grid reads cell values from `field`, not `name`.
+      `displayName` defaults to `name`.
+    - A8b. Default column order **is** the `grid_columns` array order.
+    - A8c. A per-user saved order (`settingsService` key
+      `jsonToGrid/columnOrder`, KB §8.2.1) overrides the default; columns not in
+      the saved order are appended in `grid_columns` order (`applyColumnOrder`).
+    - A8d. Dragging a column header persists the new field order via
+      `settingsService.set('jsonToGrid/columnOrder', …)`
+      (`gridApi.colMovable.on.columnPositionChanged`).
+
+A9. **Native (client-side) sort & filter.** csGrid's grid defaults set
+    `useExternalSorting`/`useExternalFiltering` to true, which routes sort/filter
+    to a server query against the synthetic `dummy_module` (no endpoint) → they
+    silently do nothing. The widget forces both to **false** (its gridOptions win
+    over csGrid's defaults), so ui-grid's native client-side engine sorts and
+    filters `gridOptions.data` in memory. `enableSorting` is also set true (grid
+    default is false). Verified live (text + numeric sort, per-column filter).
+    - A9a. `enableSorting`/`enableFiltering === true` and
+      `useExternalSorting`/`useExternalFiltering === false`.
+    - A9b. The collection's `loadGridRecord` is stubbed to a resolved no-op so a
+      stray csGrid reload can't query the dead endpoint and blank the grid.
+
+A10. **FortiSOAR-style per-column filters.** A column's type (declared on
+    `grid_columns[].type`, else INFERRED from the data) drives a native-looking
+    filter via `normalizeColumns` → `decorateColumnFilter`. Dropdown modes
+    (boolean/enum/date) render through a custom `filterHeaderTemplate` (the
+    `jtgColumnFilter` directive); number/string keep ui-grid's native input. All
+    filtering is client-side over the in-memory rows (each colDef carries a
+    `condition`).
+    - A10a. `string`/unknown (high-cardinality) → ui-grid default text filter.
+    - A10b. `boolean` → tri-state dropdown (`Any` / `Not Set` / `Yes` / `No`);
+      `jtgFilterMode === 'tri'`.
+    - A10c. `number`/`integer`/`int`/`float` → plain search box (`Search`
+      placeholder) whose `condition` still supports `> >= < <= =` and `lo..hi`.
+    - A10d. `date`/`datetime` → relative-range preset dropdown (Last 7/15/30
+      Days, Last 3/6 Months, Last Month, Last Calendar Month, Last Year);
+      `jtgFilterMode === 'date'`.
+    - A10e. An explicit per-column `filter`/`filters` override is preserved.
+    - A10f. `enableFiltering: false` suppresses the injected filter.
+    - A10g. Type is inferred from the data when `grid_columns` omits it
+      (boolean/number/ISO-date); ambiguous strings stay plain text.
+    - A10h. An explicit `grid_columns` type wins over inference.
+    - A10j. `enum`/`picklist`/`select` → searchable multi-select checklist
+      (Check/Uncheck All, `Not Set`, `Apply`); `jtgFilterMode === 'enum'`,
+      values = sorted distinct.
+    - A10k. A low-cardinality, clearly-repeating string column is auto-detected
+      as enum; A10l. a high-cardinality string column stays plain text.
+    - E2E: the boolean dropdown and enum multi-select are exercised against real
+      ui-grid (open menu → select → row count drops).
+
+A11. **Admin column chooser merge.** `config.columnPrefs` (set in edit.html,
+    `[{ field, visible }]`) supplies a default order + visibility, applied by
+    `applyColumnPrefs` BEFORE `applyColumnOrder`. grid_columns stays the source
+    of truth for which columns exist.
+    - A11a. Prefs set order; a `visible:false` pref hides the column.
+    - A11b. A playbook column absent from prefs is appended, stays visible.
+    - A11c. A pref for a column the playbook no longer returns is dropped.
+    - A11d. A per-user dragged order (settings) overrides the config order;
+      config visibility still applies (no per-user visibility override).
+    - A11e. No `columnPrefs` → columns untouched (all visible, grid order).
+
+A12. **Per-user column width persistence.** Resizing a column persists a
+    `{ field: px }` map to `settingsService` (`jsonToGrid/columnWidths`) via
+    `colResizable.on.columnSizeChanged`; widths are re-applied to the colDefs on
+    load (`applyColumnWidths`). POST-on-change, cached read, no GET, no playbook
+    re-run — same persistence model as column order (A8).
+    - A12a. Resize persists the live pixel widths of all columns.
+    - A12b. A saved width is re-applied on load; unset columns keep their
+      grid_columns width.
+    - A12c. A resize merges with previously-saved widths (others not lost).
+
+A13. **Runtime column chooser (end user).** `enableGridMenu`/
+    `gridMenuShowHideColumns` are on, so the ui-grid grid menu lets a viewer
+    show/hide columns at runtime (distinct from the admin default in A11).
+
 ## B. View — grid options contract
 
 B1. Static, read-only grid: `allowDelete/allowAdd/allowClone === false`,
     `viewType === 'staticGrid'`, `showPagination === false`,
-    `allowGlobalFilter === false`.
+    `allowGlobalFilter === false`. Sorting + filtering are **enabled**
+    (`enableSorting`/`enableFiltering === true`) and handled client-side (A9).
 B2. Selection: checkbox-only, header-select + select-all enabled
     (`selectWithCheckboxOnly`, `enableSelectAll`, `showSelectionCheckbox`,
     `enableRowHeaderSelection`).
@@ -95,8 +182,25 @@ D6. **Wizard list source.** `playbookButton()` copies
     `selectedPlaybooksWithRecord` into `playbookList` (the wizard multiselect's
     options).
 D7. **Save validation.** `save()` blocks (marks touched, focuses first error)
-    when the form is `$invalid`; otherwise closes the modal with `config`.
-    `cancel()` dismisses.
+    when the form is `$invalid`; otherwise persists the column chooser and
+    closes the modal with `config`. `cancel()` dismisses.
+
+D8. **Column chooser.** `discoverColumns()` runs the data-provider playbook once
+    (record-less, `force_debug=true`) and populates `$scope.columnChooser` from
+    the result's `grid_columns`. The admin sets default visibility (checkbox)
+    and order (up/down), persisted to `config.columnPrefs`
+    (`[{ field, displayName, visible }]`).
+    - D8a. Discovery POSTs to the action-trigger route and fills the chooser
+      (fields + types, all visible by default).
+    - D8b/D8c. No data provider / missing playbook-read permission → inline
+      error, no trigger.
+    - D8d. A finished run returning no `grid_columns` → error + toaster.
+    - D8e. Toggling visibility + `save()` writes `config.columnPrefs`.
+    - D8f. `moveColumnUp`/`moveColumnDown` reorder and persist immediately.
+    - D8g. Re-discovery keeps prior order/visibility, appends new columns
+      (visible).
+    - D8h. `resetColumnPrefs()` clears chooser + saved prefs.
+    - D8i. Saving without discovering never wipes existing `columnPrefs`.
 
 ## E. Edit — template contract
 

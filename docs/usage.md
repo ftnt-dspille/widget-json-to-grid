@@ -92,21 +92,40 @@ The widget renders columns in the order they appear in the `columns` array.
 
 ### Supported Keywords
 
+Only `name` is required. The widget copies `name` into the grid's internal
+`field` (the property it reads each cell from), so you never set `field`
+yourself — just make `name` match the `grid_data` key exactly.
+
 | Keyword | Type | Description |
 |---------|------|-------------|
-| `name` | string | **Required.** The field key from `grid_data` objects. Must match the property name exactly. |
+| `name` | string | **Required.** The field key from `grid_data` objects. Must match the property name exactly — it is what the cell value is read from, and what column order / sort / filter operate on. |
 | `displayName` | string | Column header label. Defaults to `name` if omitted. |
 | `width` | number | Fixed column width in pixels (e.g. `120`). Omit to let the column size automatically. |
 | `minWidth` | number | Minimum column width in pixels. |
 | `maxWidth` | number | Maximum column width in pixels. |
-| `type` | string | Data type hint for sorting and filtering. One of `string` (default), `number`, `date`, `boolean`, `object`. |
+| `type` | string | Data type hint. Sorting auto-detects numbers vs text regardless, so this mainly documents intent. |
 | `cellFilter` | string | AngularJS filter expression applied to the cell value before display. Examples: `"date:'MM/dd/yyyy'"`, `"number:2"`, `"uppercase"`. |
-| `cellTemplate` | string | Custom HTML template for the cell. The cell value is available as `row.entity[col.field]`. Use sparingly — plain `cellFilter` is simpler for formatting. |
+| `cellTemplate` | string | Custom HTML template for the cell. The cell value is available as `row.entity[col.field]` (recall `field` === your `name`). Use sparingly — plain `cellFilter` is simpler for formatting. |
 | `enableSorting` | boolean | Allow the user to sort by this column. Default: `true`. Set `false` to disable sorting on a specific column. |
 | `enableFiltering` | boolean | Show a filter input for this column. Default: `true` (inherited from grid). Set `false` to disable filtering on a specific column. |
 | `visible` | boolean | Whether the column is initially visible. Default: `true`. |
 | `pinnedLeft` | boolean | Pin the column to the left edge of the grid. |
 | `pinnedRight` | boolean | Pin the column to the right edge of the grid. |
+
+### Column order, sorting & filtering
+
+- **Default column order** is exactly the order of entries in the `columns`
+  array — independent of the property order inside `grid_data` objects.
+- **Reordering** is per-user and persistent: drag a column header and the new
+  order is saved (via the platform user-settings store) and restored on your
+  next visit. If a later playbook run adds a new column, it appears at the end;
+  removed columns are dropped from the saved order automatically.
+- **Sorting** is client-side over the returned rows — click a column header to
+  sort; numeric columns sort numerically, everything else case-insensitively.
+  No extra playbook run happens. Disable per column with `"enableSorting": false`.
+- **Filtering** is client-side too: the per-column filter inputs do a
+  case-insensitive substring match over the rows already returned (they do not
+  re-run the playbook). Disable per column with `"enableFiltering": false`.
 
 ### Examples
 

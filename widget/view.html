@@ -2,6 +2,42 @@
     MIT License
     Copyright (c) 2026 Fortinet Inc
 Copyright end -->
+<style>
+/* FortiSOAR-style column filter dropdowns (jtgColumnFilter directive). The
+   menu is appended to <body> (uib dropdown-append-to-body) so these .jtg-*
+   rules are intentionally global, not scoped under .widget. */
+.jtg-colfilter { width: 100%; }
+.jtg-colfilter .jtg-toggle {
+    display: flex; align-items: center; justify-content: space-between;
+    width: 100%; padding: 2px 6px; font-size: 12px; line-height: 18px;
+    color: inherit; text-decoration: none; cursor: pointer;
+    border: 1px solid rgba(128,128,128,0.4); border-radius: 2px;
+    background: transparent;
+}
+.jtg-colfilter .jtg-toggle:hover { border-color: rgba(128,128,128,0.7); }
+.jtg-colfilter .jtg-toggle-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jtg-colfilter .jtg-caret { margin-left: 6px; opacity: 0.6; }
+.jtg-menu { min-width: 200px; max-height: 320px; overflow-y: auto; padding: 4px 0; z-index: 1100; }
+.jtg-menu .jtg-menu-title { padding: 4px 12px; font-weight: 600; border-bottom: 1px solid rgba(128,128,128,0.25); margin-bottom: 4px; }
+.jtg-menu > li > a { display: block; padding: 5px 12px; cursor: pointer; white-space: nowrap; text-decoration: none; }
+.jtg-menu > li > a:hover { background: rgba(128,128,128,0.15); }
+.jtg-menu .jtg-enum { padding: 6px 12px; }
+.jtg-menu .jtg-enum-search { margin-bottom: 6px; }
+.jtg-menu .jtg-allrow { display: flex; gap: 12px; margin-bottom: 6px; font-size: 12px; }
+.jtg-menu .jtg-allrow a { cursor: pointer; text-decoration: none; }
+.jtg-menu .jtg-check { display: block; font-weight: 400; margin-bottom: 4px; cursor: pointer; }
+.jtg-menu .jtg-check input { margin-right: 6px; }
+.jtg-menu .jtg-apply { width: 100%; margin-top: 6px; }
+/* Custom-range popup ($uibModal, appended to <body> — global selectors). */
+.jtg-range-modal .modal-dialog { width: auto; max-width: 640px; }
+.jtg-range .jtg-range-cols { display: flex; gap: 20px; flex-wrap: wrap; }
+.jtg-range .jtg-range-col { display: flex; flex-direction: column; gap: 6px; }
+.jtg-range .jtg-range-label { font-weight: 600; font-size: 13px; }
+.jtg-range .jtg-range-clear { font-weight: 400; font-size: 12px; margin-left: 6px; cursor: pointer; }
+.jtg-range [uib-datepicker] table { margin: 0; }
+.jtg-range [uib-timepicker] table { margin: 4px 0 0; }
+.jtg-range .jtg-range-err { color: #d9534f; font-size: 13px; margin-top: 10px; }
+</style>
 <div class="widget widget-container chart">
     <div class="display-flex-space-between margin-chart">
         <div class="padding-right-0 padding-left-0 widget-dashboard-title-width"
@@ -14,7 +50,10 @@ Copyright end -->
         </div>
     </div>
     <div class="clearfix"></div>
-    <div class="text-center" data-ng-if="loadProcessing">
+    <div class="alert alert-warning margin-left-lg margin-right-lg" data-ng-if="gridError">
+        {{gridError}}
+    </div>
+    <div class="text-center" data-ng-if="loadProcessing && !gridError">
         <cs-spinner class="state-wait" data-show-background="true"></cs-spinner>
         <div class="font-size-14">Fetching Grid Data ...</div>
     </div>

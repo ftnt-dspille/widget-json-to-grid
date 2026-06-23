@@ -13,7 +13,7 @@ require("angular-mocks");
 angular.module("cybersponse", []); // eslint-disable-line no-undef
 require("../widget/edit.controller.js");
 
-const CTRL_NAME = "editJsonToGrid130DevCtrl";
+const CTRL_NAME = "editJsonToGrid131DevCtrl";
 const ngModule = window.angular.mock.module; // eslint-disable-line no-undef
 const ngInject = window.angular.mock.inject; // eslint-disable-line no-undef
 
@@ -21,14 +21,40 @@ const underscoreShim = {
   reject: (list, fn) => (list || []).filter((x) => !fn(x)),
 };
 
-let $rootScope, $controller, $q, modalInstance, resourceGet;
+let $rootScope, $controller, $q, modalInstance, resourceGet, scenario;
 
 beforeEach(() => {
   modalInstance = { close: jest.fn(), dismiss: jest.fn() };
   resourceGet = jest.fn();
 
+  // Column-discovery knobs (SPEC D8). Default models a healthy provider that
+  // finishes and returns three typed columns.
+  scenario = {
+    hasReadPermission: true,
+    triggerStep: { arguments: { route: "route-1", resources: ["alerts"] } },
+    saveResponse: { task_ids: ["task-1"] },
+    logData: {
+      status: "finished",
+      result: {
+        grid_columns: {
+          columns: [
+            { name: "name", type: "string" },
+            { name: "active", type: "boolean" },
+            { name: "count", type: "number" },
+          ],
+        },
+      },
+    },
+    saveCalls: [],
+    toasts: [],
+  };
+
   ngModule("cybersponse", ($provide) => {
-    $provide.value("API", { BASE: "/api/3/" });
+    $provide.value("API", {
+      BASE: "/api/3/",
+      WORKFLOWS: "workflows/",
+      ACTION_TRIGGER: "/api/triggers/1/action/",
+    });
     $provide.value("$uibModalInstance", modalInstance);
     $provide.value("_", underscoreShim);
     $provide.value("$filter", () => (val) => {
@@ -40,12 +66,38 @@ beforeEach(() => {
     $provide.value("Field", function Field(def) {
       Object.assign(this, def);
     });
-    $provide.factory("$resource", (_$q_) => () => ({
+    $provide.factory("$resource", (_$q_) => (url) => ({
       get: (q) => {
         resourceGet(q);
+        // A workflows/<uuid> GET (relationships) returns a playbook for
+        // discovery; the collection GET returns the playbook list.
+        if (/workflows\/[\w-]+$/.test(url)) {
+          return {
+            $promise: _$q_.when({
+              "@id": url,
+              recordTags: [],
+              steps: [],
+            }),
+          };
+        }
         return { $promise: _$q_.when({ "hydra:member": [{ name: "PB1" }, { name: "PB2" }] }) };
       },
+      save: (body) => {
+        scenario.saveCalls.push({ url, body });
+        return { $promise: _$q_.when(scenario.saveResponse) };
+      },
     }));
+    $provide.value("playbookService", {
+      getTriggerStep: () => scenario.triggerStep,
+      checkPlaybookExecutionCompletion: (taskIds, cb) =>
+        cb({ instance_ids: ["inst-1"] }),
+      getExecutedPlaybookLogData: () => $q.when(scenario.logData),
+    });
+    $provide.value("currentPermissionsService", {
+      availablePermission: () => scenario.hasReadPermission,
+    });
+    $provide.value("FIXED_MODULE", { PLAYBOOK: "workflows" });
+    $provide.value("toaster", { pop: (...a) => scenario.toasts.push(a) });
   });
 
   ngInject((_$rootScope_, _$controller_, _$q_) => {
@@ -217,5 +269,161 @@ describe("save / cancel (SPEC D7)", () => {
     const scope = boot({});
     scope.cancel();
     expect(modalInstance.dismiss).toHaveBeenCalledWith("cancel");
+  });
+});
+
+// ── Column chooser / discovery (SPEC D8 / FOLLOWUPS #2) ───────────────────
+describe("column chooser (SPEC D8)", () => {
+  const withProvider = (extra = {}) => ({
+    actionButtons: [{ uuid: "provider-uuid", name: "Provider" }],
+    ...extra,
+  });
+
+  test("D8a: discoverColumns runs the provider and populates the chooser", () => {
+    const scope = boot(withProvider());
+    scope.discoverColumns();
+    $rootScope.$apply();
+
+    expect(scope.columnDiscovery.done).toBe(true);
+    expect(scope.columnDiscovery.error).toBeNull();
+    expect(scope.columnChooser.map((c) => c.field)).toEqual([
+      "name",
+      "active",
+      "count",
+    ]);
+    // type is carried through; all visible by default.
+    expect(scope.columnChooser.map((c) => c.type)).toEqual([
+      "string",
+      "boolean",
+      "number",
+    ]);
+    expect(scope.columnChooser.every((c) => c.visible)).toBe(true);
+    // It POSTed to the action-trigger route in force_debug mode with no records.
+    const trigger = scenario.saveCalls.find((c) => /force_debug=true$/.test(c.url));
+    expect(trigger).toBeDefined();
+    expect(trigger.body.records).toEqual([]);
+    // A record-scoped trigger MUST send __resource = the scoped module, or the
+    // action-trigger endpoint returns 403 AccessDenied (verified live).
+    expect(trigger.body.__resource).toBe("alerts");
+  });
+
+  test("D8a2: a record-less provider sends an empty __resource", () => {
+    scenario.triggerStep = { arguments: { route: "route-1" } }; // no resources
+    const scope = boot(withProvider());
+    scope.discoverColumns();
+    $rootScope.$apply();
+    const trigger = scenario.saveCalls.find((c) => /force_debug=true$/.test(c.url));
+    expect(trigger.body.__resource).toBe("");
+  });
+
+  test("D8b: discovery without a data provider sets an error, no trigger", () => {
+    const scope = boot({});
+    scope.discoverColumns();
+    $rootScope.$apply();
+    expect(scope.columnDiscovery.error).toMatch(/data-provider/i);
+    expect(scenario.saveCalls).toHaveLength(0);
+  });
+
+  test("D8c: missing playbook read permission is reported, no trigger", () => {
+    scenario.hasReadPermission = false;
+    const scope = boot(withProvider());
+    scope.discoverColumns();
+    $rootScope.$apply();
+    expect(scope.columnDiscovery.error).toMatch(/permission/i);
+    expect(scenario.saveCalls).toHaveLength(0);
+  });
+
+  test("D8d: a finished run with no grid_columns is reported as an error", () => {
+    scenario.logData = { status: "finished", result: { grid_columns: { columns: [] } } };
+    const scope = boot(withProvider());
+    scope.discoverColumns();
+    $rootScope.$apply();
+    expect(scope.columnChooser).toHaveLength(0);
+    expect(scope.columnDiscovery.error).toMatch(/no grid_columns/i);
+    expect(scenario.toasts.length).toBeGreaterThan(0);
+  });
+
+  test("D8e: toggling visibility and saving persists config.columnPrefs", () => {
+    const scope = boot(withProvider());
+    scope.discoverColumns();
+    $rootScope.$apply();
+
+    scope.toggleColumnVisible(scope.columnChooser[1]); // hide "active"
+    scope.editJsonToGridForm = { $invalid: false };
+    scope.save();
+
+    const prefs = scope.config.columnPrefs;
+    expect(prefs.map((p) => p.field)).toEqual(["name", "active", "count"]);
+    expect(prefs.find((p) => p.field === "active").visible).toBe(false);
+    expect(prefs.find((p) => p.field === "name").visible).toBe(true);
+    expect(modalInstance.close).toHaveBeenCalledWith(scope.config);
+  });
+
+  test("D8f: moveColumnUp/Down reorders and persists", () => {
+    const scope = boot(withProvider());
+    scope.discoverColumns();
+    $rootScope.$apply();
+
+    scope.moveColumnDown(0); // name moves after active
+    expect(scope.columnChooser.map((c) => c.field)).toEqual([
+      "active",
+      "name",
+      "count",
+    ]);
+    scope.moveColumnUp(2); // count moves before name
+    expect(scope.columnChooser.map((c) => c.field)).toEqual([
+      "active",
+      "count",
+      "name",
+    ]);
+    // persisted immediately on reorder
+    expect(scope.config.columnPrefs.map((p) => p.field)).toEqual([
+      "active",
+      "count",
+      "name",
+    ]);
+  });
+
+  test("D8g: re-discovery preserves prior order + hidden state, appends new columns", () => {
+    const scope = boot(
+      withProvider({
+        columnPrefs: [
+          { field: "count", displayName: "count", visible: false },
+          { field: "name", displayName: "name", visible: true },
+        ],
+      })
+    );
+    // _init seeds the chooser from saved prefs.
+    expect(scope.columnChooser.map((c) => c.field)).toEqual(["count", "name"]);
+
+    // A re-discovery returns name, active, count — prior order/visibility wins,
+    // the new "active" column is appended and visible.
+    scope.discoverColumns();
+    $rootScope.$apply();
+    expect(scope.columnChooser.map((c) => c.field)).toEqual([
+      "count",
+      "name",
+      "active",
+    ]);
+    expect(scope.columnChooser.find((c) => c.field === "count").visible).toBe(false);
+    expect(scope.columnChooser.find((c) => c.field === "active").visible).toBe(true);
+  });
+
+  test("D8h: resetColumnPrefs clears the chooser and saved prefs", () => {
+    const scope = boot(withProvider({ columnPrefs: [{ field: "x", visible: true }] }));
+    scope.resetColumnPrefs();
+    expect(scope.columnChooser).toHaveLength(0);
+    expect(scope.config.columnPrefs).toHaveLength(0);
+    expect(scope.columnDiscovery.done).toBe(false);
+  });
+
+  test("D8i: saving without ever discovering does NOT wipe existing columnPrefs", () => {
+    const existing = [{ field: "x", displayName: "x", visible: false }];
+    const scope = boot(withProvider({ columnPrefs: existing.slice() }));
+    // _init seeds the chooser from prefs, so it round-trips rather than wiping.
+    scope.editJsonToGridForm = { $invalid: false };
+    scope.save();
+    expect(scope.config.columnPrefs.map((p) => p.field)).toEqual(["x"]);
+    expect(scope.config.columnPrefs[0].visible).toBe(false);
   });
 });
