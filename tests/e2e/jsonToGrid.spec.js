@@ -390,4 +390,73 @@ test.describe("jsonToGrid — view", () => {
     await expect(bodyRows).toHaveCount(1, { timeout: 10000 });
   });
 
+  test("number column uses ui-grid's native input and filters rows", async ({ page }) => {
+    const rows = [{ amount: 3 }, { amount: 17 }, { amount: 42 }];
+    const columns = [{ name: "amount", type: "number" }];
+    await mountView(page, id, rows, {}, columns);
+
+    const bodyRows = bodyRowsLoc(page);
+    await expect(bodyRows).toHaveCount(3, { timeout: 20000 });
+
+    // Number keeps ui-grid's native filter input (not a .jtg dropdown). Scope to
+    // the "amount" header cell so we don't grab the selection/expandable column's
+    // input.
+    await expect(page.locator(".jtg-toggle")).toHaveCount(0);
+    const input = page
+      .locator(".grid-widget-container .ui-grid-header-cell", { hasText: "amount" })
+      .locator("input")
+      .first();
+    await expect(input).toBeVisible({ timeout: 10000 });
+
+    // Typing narrows the grid. (The operator/range SEMANTICS — >, >=, lo..hi, =
+    // — are unit-tested deterministically in view.controller.test.js A10c; the
+    // harness's CDN ui-grid does not always invoke a colDef.filter.condition, so
+    // here we assert the native input + filtering wiring renders and reacts.)
+    await input.fill("17");
+    await expect(bodyRows).toHaveCount(1, { timeout: 10000 });
+    await input.fill("");
+    await expect(bodyRows).toHaveCount(3, { timeout: 10000 });
+  });
+
+  test("string column keeps ui-grid's native substring text filter", async ({ page }) => {
+    // High-cardinality distinct strings so the auto-enum heuristic does NOT
+    // promote this to a multi-select (it stays a plain text filter).
+    const rows = [{ host: "alpha-server-01" }, { host: "bravo-server-02" }, { host: "charlie-server-03" }];
+    const columns = [{ name: "host" }];
+    await mountView(page, id, rows, {}, columns);
+
+    const bodyRows = bodyRowsLoc(page);
+    await expect(bodyRows).toHaveCount(3, { timeout: 20000 });
+    await expect(page.locator(".jtg-toggle")).toHaveCount(0);
+
+    const input = page.locator(".grid-widget-container .ui-grid-filter-input").first();
+    await input.fill("bravo");
+    await expect(bodyRows).toHaveCount(1, { timeout: 10000 });
+  });
+
+  test("clicking a column header sorts the rows", async ({ page }) => {
+    const rows = [{ amount: 42 }, { amount: 3 }, { amount: 17 }];
+    const columns = [{ name: "amount", type: "number" }];
+    await mountView(page, id, rows, {}, columns);
+
+    const bodyRows = bodyRowsLoc(page);
+    await expect(bodyRows).toHaveCount(3, { timeout: 20000 });
+
+    const firstCell = () =>
+      page.locator(".grid-widget-container .ui-grid-render-container-body .ui-grid-row")
+        .first()
+        .locator(".ui-grid-cell-contents")
+        .first();
+
+    // Click the header to sort ascending → first row becomes the smallest (3).
+    await page.locator(".grid-widget-container .ui-grid-header-cell", { hasText: "amount" })
+      .locator(".ui-grid-cell-contents").first().click();
+    await expect(firstCell()).toHaveText(/^\s*3\s*$/, { timeout: 10000 });
+
+    // Click again → descending → first row becomes the largest (42).
+    await page.locator(".grid-widget-container .ui-grid-header-cell", { hasText: "amount" })
+      .locator(".ui-grid-cell-contents").first().click();
+    await expect(firstCell()).toHaveText(/^\s*42\s*$/, { timeout: 10000 });
+  });
+
 });
