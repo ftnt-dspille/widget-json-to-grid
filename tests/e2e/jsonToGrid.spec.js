@@ -459,4 +459,72 @@ test.describe("jsonToGrid — view", () => {
     await expect(firstCell()).toHaveText(/^\s*42\s*$/, { timeout: 10000 });
   });
 
+  // ── Expandable rows ──────────────────────────────────────────────────────
+  // The widget sets gridOptions.enableExpandable + expandableRowTemplate
+  // (widgetAssets/html/rowExpandable.html). ui-grid's expandable feature
+  // (module ui.grid.expandable, registered in HARNESS_VENDOR_DEPS) renders a
+  // per-row expand toggle; clicking it injects the widget's template, which
+  // shows a "Description" + "UUID" detail block bound to the row entity.
+  test("each row exposes an expand toggle that reveals the row-detail template", async ({ page }) => {
+    const rows = [
+      { name: "CR-1", severity: "High", description: "first change request", uuid: "aaaa-1111" },
+      { name: "CR-2", severity: "Low", description: "second change request", uuid: "bbbb-2222" },
+    ];
+    await mountView(page, id, rows);
+    await expect(bodyRowsLoc(page)).toHaveCount(2, { timeout: 20000 });
+
+    // ui-grid renders the per-row expand affordance as a clickable plus icon
+    // (<i class="ui-grid-icon-plus-squared">) inside each expandable-buttons
+    // cell — one per data row. (The matching <button> with the same class is
+    // the optional expand-all header control, which this widget does not show.)
+    const expandToggles = page.locator(
+      ".grid-widget-container .ui-grid-expandable-buttons-cell i.ui-grid-icon-plus-squared"
+    );
+    await expect(expandToggles).toHaveCount(2, { timeout: 20000 });
+    await expect(expandToggles.first()).toBeVisible();
+
+    // Before expanding, the row-detail template is not rendered.
+    await expect(page.locator(".grid-widget-container #rowExpand")).toHaveCount(0);
+
+    await expandToggles.first().click();
+
+    // Expansion fired: the clicked row's toggle flips to the minus (collapse)
+    // icon, and ui-grid mounts the expandable sub-row container.
+    await expect(
+      page.locator(".grid-widget-container .ui-grid-expandable-buttons-cell i.ui-grid-icon-minus-squared")
+    ).toHaveCount(1, { timeout: 10000 });
+    await expect(page.locator(".grid-widget-container .expandableRow")).toHaveCount(1, { timeout: 10000 });
+
+    // NOTE: the detail template (rowExpandable.html) renders its Description/UUID
+    // body via cs-markdown-editor, which the harness only vendors when editor
+    // markers appear in view.html/edit.html — NOT in widgetAssets sub-templates.
+    // So the expanded body stays empty in this hermetic tier; the rendered
+    // detail content + row height are verified live on the box. This tier locks
+    // the grid-level wiring: per-row toggle + expand/collapse state.
+  });
+
+  // ── Card view ────────────────────────────────────────────────────────────
+  // The widget sets csOptions.allowCardView:true, but the platform grid only
+  // exposes the card/list toggle when BOTH allowCardView AND allowGlobalFilter
+  // are true (grid.html: data-ng-show="...allowGlobalFilter && ...allowCardView").
+  // The widget disables allowGlobalFilter, so the toggle is intentionally not
+  // reachable and the grid always renders in list view. This pins that
+  // contract so a future allowGlobalFilter flip doesn't silently expose a
+  // half-wired card view (cardView.html binds record.name/image — collection
+  // shape, not arbitrary grid_data).
+  test("card-view toggle stays hidden because global filter is disabled", async ({ page }) => {
+    const rows = [{ name: "CR-1", severity: "High" }];
+    await mountView(page, id, rows);
+    await expect(bodyRowsLoc(page)).toHaveCount(1, { timeout: 20000 });
+
+    // The toggle buttons are ng-show-gated (present in the DOM but hidden),
+    // so assert they are not visible rather than absent.
+    await expect(page.locator(".grid-widget-container #grid-card-view-btn")).toBeHidden();
+    await expect(page.locator(".grid-widget-container #grid-list-view-btn")).toBeHidden();
+    // List (ui-grid) container is the one that renders.
+    await expect(
+      page.locator(".grid-widget-container .ui-grid-render-container-body")
+    ).toBeVisible();
+  });
+
 });
