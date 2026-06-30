@@ -27,11 +27,11 @@ Copyright end */
 
   angular
     .module('cybersponse')
-    .controller('jsonToGrid132DevCtrl', jsonToGrid132DevCtrl);
+    .controller('jsonToGrid150DevCtrl', jsonToGrid150DevCtrl);
 
-  jsonToGrid132DevCtrl.$inject = ['$scope', '$state', '$resource', 'API', 'playbookService', '$q', 'toaster', 'Entity', '$filter', 'Modules', '_', 'exportService', 'currentPermissionsService', 'FIXED_MODULE', 'statusCodeService', '$uibModal', 'widgetService', 'PagedCollection', 'widgetBasePath', 'settingsService', '$injector'];
+  jsonToGrid150DevCtrl.$inject = ['$scope', '$state', '$resource', 'API', 'playbookService', '$q', 'toaster', 'Entity', '$filter', 'Modules', '_', 'exportService', 'currentPermissionsService', 'FIXED_MODULE', 'statusCodeService', '$uibModal', 'widgetService', 'PagedCollection', 'widgetBasePath', 'settingsService', '$injector'];
 
-  function jsonToGrid132DevCtrl($scope, $state, $resource, API, playbookService, $q, toaster, Entity, $filter, Modules, _, exportService, currentPermissionsService, FIXED_MODULE, statusCodeService, $uibModal, widgetService, PagedCollection, widgetBasePath, settingsService, $injector) {
+  function jsonToGrid150DevCtrl($scope, $state, $resource, API, playbookService, $q, toaster, Entity, $filter, Modules, _, exportService, currentPermissionsService, FIXED_MODULE, statusCodeService, $uibModal, widgetService, PagedCollection, widgetBasePath, settingsService, $injector) {
     // uiGridConstants is a SOFT dependency: it supplies the filter-type enum for
     // the per-column filters, but the widget must still mount if a host/harness
     // hasn't registered ui.grid (buildColumnFilter falls back to the numeric

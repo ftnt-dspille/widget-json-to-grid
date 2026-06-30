@@ -1,5 +1,5 @@
 "use strict";
-// edit.controller (editJsonToGrid132DevCtrl) unit tests — jsdom project.
+// edit.controller (editJsonToGrid150DevCtrl) unit tests — jsdom project.
 //
 // The edit controller is pure config manipulation (no async grid chain), so
 // these tests construct it with injected locals and assert the config model
@@ -13,7 +13,7 @@ require("angular-mocks");
 angular.module("cybersponse", []); // eslint-disable-line no-undef
 require("../widget/edit.controller.js");
 
-const CTRL_NAME = "editJsonToGrid132DevCtrl";
+const CTRL_NAME = "editJsonToGrid150DevCtrl";
 const ngModule = window.angular.mock.module; // eslint-disable-line no-undef
 const ngInject = window.angular.mock.inject; // eslint-disable-line no-undef
 

@@ -1,5 +1,5 @@
 "use strict";
-// view.controller (jsonToGrid132DevCtrl) unit tests — jsdom project.
+// view.controller (jsonToGrid150DevCtrl) unit tests — jsdom project.
 //
 // The controller drives a deep async chain on init:
 //   _init -> loadGriOptions (build grid options + buttons)
@@ -20,7 +20,7 @@ require("angular-mocks");
 angular.module("cybersponse", []); // eslint-disable-line no-undef
 require("../widget/view.controller.js");
 
-const CTRL_NAME = "jsonToGrid132DevCtrl";
+const CTRL_NAME = "jsonToGrid150DevCtrl";
 const ngModule = window.angular.mock.module; // eslint-disable-line no-undef
 const ngInject = window.angular.mock.inject; // eslint-disable-line no-undef
 
