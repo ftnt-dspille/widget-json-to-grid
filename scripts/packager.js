@@ -109,6 +109,24 @@ function rewriteForVersion(dir, widgetName, version) {
   rewrite(path.join(dir, "edit.controller.js"));
   rewrite(path.join(dir, "view.controller.js"));
   rewrite(path.join(dir, "view.html"), { rewritePaths: true });
+
+  // Tests instantiate the controller by its versioned registration name
+  // (e.g. `jsonToGrid132DevCtrl` via `$controller(CTRL_NAME, …)`), so a bump
+  // must rewrite those refs too — otherwise the constants go stale and
+  // `npm test` can't resolve the controller after every bump. `../tests`
+  // resolves from the widget dir on a source bump; during packaging the tgz
+  // tmp copy has no sibling tests/ dir, so this is a no-op there (tests aren't
+  // shipped). Mirrors the listPackagedFiles walk so tests/e2e is covered too.
+  const testsDir = path.join(dir, "..", "tests");
+  if (fs.existsSync(testsDir)) {
+    (function walk(cur) {
+      for (const e of fs.readdirSync(cur, { withFileTypes: true })) {
+        const p = path.join(cur, e.name);
+        if (e.isDirectory()) walk(p);
+        else if (e.isFile() && e.name.endsWith(".js")) rewrite(p);
+      }
+    })(testsDir);
+  }
 }
 
 // Convenience alias — same function is used by packageWidget (against a
